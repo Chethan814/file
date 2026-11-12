@@ -1,9 +1,11 @@
-# DBMS Lab – MySQL Practice Programs
+# DBMS Lab – Oracle SQL*Plus Practice Programs
 
-MySQL 8.0 programs for the DBMS lab (Part A and Part B). Every program has the SQL, a "Tables used" block, and a short memory note. Part B queries also include sample output.
+Oracle SQL / SQL*Plus version of the DBMS lab (Part A and Part B). Every program has the SQL, a "Tables used" block, a short memory note, and sample output for the queries.
 
 ## Contents
 
+- [What changed from the MySQL version](#what-changed-from-the-mysql-version)
+- [How to run in SQL*Plus](#how-to-run-in-sqlplus)
 - [Part A – Company schema](#part-a--company-schema)
   - [Program 2](#part-a--program-2)
   - [Program 3](#part-a--program-3)
@@ -26,11 +28,40 @@ MySQL 8.0 programs for the DBMS lab (Part A and Part B). Every program has the S
   - [Program 9](#part-b--program-9)
   - [Program 10](#part-b--program-10)
 
-## How to run
+## What changed from the MySQL version
 
-1. Open MySQL Workbench (or the `mysql` command line).
-2. Run each part in order. Programs change data (update, delete), so run them top to bottom.
-3. Part A uses `company_db`. Part B uses `library_db` (Programs 1–5) and `student_db` (Programs 6–10).
+| MySQL | Oracle / SQL*Plus |
+|---|---|
+| `CREATE DATABASE`, `USE`, `SHOW DATABASES` | A user is the schema: `CREATE USER`, `GRANT`, `CONNECT`, `SHOW USER` |
+| `SHOW TABLES;` | `SELECT table_name FROM user_tables;` |
+| `INT`, `VARCHAR`, `DECIMAL` | `NUMBER`, `VARCHAR2`, `NUMBER(p,s)` |
+| `'1990-01-10'` | `DATE '1990-01-10'` |
+| One `INSERT` with many rows | One `INSERT` per row |
+| `YEAR(date)` | `EXTRACT(YEAR FROM date)` |
+| `ADD col type`, `MODIFY col type` | `ADD (col type)`, `MODIFY (col type)` |
+| `RENAME TABLE a TO b` | `ALTER TABLE a RENAME TO b` |
+| `START TRANSACTION` | Not needed. DML starts a transaction automatically |
+| Auto-commit after each statement | Run `COMMIT;` yourself after INSERT/UPDATE/DELETE |
+| `mysqldump` / `mysql` | `expdp` / `impdp` (Data Pump) |
+| `LIKE` ignores case | `LIKE` is case-sensitive, so `UPPER(name) LIKE 'S%'` is used |
+
+## How to run in SQL*Plus
+
+1. Open Command Prompt and log in as a DBA user:
+   ```text
+   sqlplus system/<password>@localhost:1521/XEPDB1
+   ```
+   Use your own password and service name. If `CREATE USER` gives ORA-65096, you are in the container database. Connect to the pluggable database (for example `XEPDB1`) instead.
+2. Set up the session. Do this every time you log in:
+   ```sql
+   SET LINESIZE 200
+   SET PAGESIZE 50
+   ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD';
+   ```
+3. Run each part in order, top to bottom, because some programs change data.
+4. Part A uses the `company` user. Part B uses the `library` user (Programs 1–5) and the `students` user (Programs 6–10).
+5. Useful commands: `DESC EMP` (table structure), `SPOOL output.txt` / `SPOOL OFF` (save output to a file), `@script.sql` (run a script), `EXIT`.
+6. If you log in as the SCOTT demo user, `EMP` and `DEPT` already exist. Use the `company` user instead to avoid a clash.
 
 ---
 
@@ -38,42 +69,52 @@ MySQL 8.0 programs for the DBMS lab (Part A and Part B). Every program has the S
 
 *Tables: EMP, DEPT, PROJECT, WORKS_ON*
 
-### Required Company Tables
+### Setup and Required Company Tables
 
-Use these four tables for all Programs 2–10. No additional tables or attributes are required.
+Run the setup once, then create the four tables. Use them for all Programs 2–10. No additional tables or attributes are required.
+
+#### Setup (create the schema)
 
 ```sql
-CREATE DATABASE IF NOT EXISTS company_db;
-USE company_db;
+-- Run as SYSTEM (or any DBA user)
+CREATE USER company IDENTIFIED BY company123;
+GRANT CONNECT, RESOURCE, CREATE VIEW, UNLIMITED TABLESPACE TO company;
 
+-- Switch to the new schema
+CONNECT company/company123
+```
+
+#### Create tables
+
+```sql
 CREATE TABLE DEPT (
-    DNO INT PRIMARY KEY,
-    DNAME VARCHAR(30),
-    DLOCATION VARCHAR(30)
+    DNO NUMBER(3) PRIMARY KEY,
+    DNAME VARCHAR2(30),
+    DLOCATION VARCHAR2(30)
 );
 
 CREATE TABLE EMP (
-    ENO INT PRIMARY KEY,
-    ENAME VARCHAR(30),
+    ENO NUMBER(5) PRIMARY KEY,
+    ENAME VARCHAR2(30),
     EBDATE DATE,
-    ADDRESS VARCHAR(100),
+    ADDRESS VARCHAR2(100),
     GENDER CHAR(1),
-    SALARY DECIMAL(10,2),
-    DEPTNO INT,
+    SALARY NUMBER(10,2),
+    DEPTNO NUMBER(3),
     FOREIGN KEY (DEPTNO) REFERENCES DEPT(DNO)
 );
 
 CREATE TABLE PROJECT (
-    PNO INT PRIMARY KEY,
-    PNAME VARCHAR(30),
-    DNUM INT,
+    PNO NUMBER(3) PRIMARY KEY,
+    PNAME VARCHAR2(30),
+    DNUM NUMBER(3),
     FOREIGN KEY (DNUM) REFERENCES DEPT(DNO)
 );
 
 CREATE TABLE WORKS_ON (
-    ENO INT,
-    PNUM INT,
-    HOURS DECIMAL(5,2),
+    ENO NUMBER(5),
+    PNUM NUMBER(3),
+    HOURS NUMBER(5,2),
     PRIMARY KEY (ENO, PNUM),
     FOREIGN KEY (ENO) REFERENCES EMP(ENO),
     FOREIGN KEY (PNUM) REFERENCES PROJECT(PNO)
@@ -87,62 +128,63 @@ CREATE TABLE WORKS_ON (
 > **Creating Tables (With and Without Constraints), Inserting/Updating/Deleting**  
 > **Records in a Table, Saving (Commit) and Undoing (rollback)**  
 
-#### View databases
+#### View databases (Oracle: database name and users/schemas)
 
 ```sql
-SHOW DATABASES;
+SELECT name FROM v$database;
+SELECT username FROM all_users ORDER BY username;
+SHOW USER;
 ```
 
-#### Create database
+#### Create database (Oracle uses a user/schema)
 
 ```sql
-CREATE DATABASE IF NOT EXISTS company_db;
-USE company_db;
+-- Already done in 'Setup' above: CREATE USER company ... then CONNECT company/company123
+SHOW USER;
 ```
 
 #### View tables
 
 ```sql
-SHOW TABLES;
+SELECT table_name FROM user_tables;
 ```
 
 #### Create table without constraints
 
 ```sql
 CREATE TABLE TEST (
-    ID INT,
-    NAME VARCHAR(30)
+    ID NUMBER,
+    NAME VARCHAR2(30)
 );
 ```
 
 #### Insert records
 
 ```sql
-INSERT INTO DEPT VALUES
-(1,'RESEARCH','BANGALORE'),
-(2,'ACCOUNTS','MYSORE'),
-(5,'ADMIN','BANGALORE');
+INSERT INTO DEPT VALUES (1,'RESEARCH','BANGALORE');
+INSERT INTO DEPT VALUES (2,'ACCOUNTS','MYSORE');
+INSERT INTO DEPT VALUES (5,'ADMIN','BANGALORE');
 
-INSERT INTO EMP VALUES
-(1001,'ANIL','1990-01-10','BANGALORE','M',45000,1),
-(1002,'SINDHU','1991-05-20','MYSORE','F',50000,2),
-(1003,'RAJ','1990-11-15','BANGALORE','M',35000,1),
-(1004,'KAVYA','1992-03-12','MYSORE','F',55000,2),
-(1005,'ARUN','1989-08-10','BANGALORE','M',30000,5),
-(1006,'SNEHA','1990-12-05','BANGALORE','F',45000,5);
+INSERT INTO EMP VALUES (1001,'ANIL',DATE '1990-01-10','BANGALORE','M',45000,1);
+INSERT INTO EMP VALUES (1002,'SINDHU',DATE '1991-05-20','MYSORE','F',50000,2);
+INSERT INTO EMP VALUES (1003,'RAJ',DATE '1990-11-15','BANGALORE','M',35000,1);
+INSERT INTO EMP VALUES (1004,'KAVYA',DATE '1992-03-12','MYSORE','F',55000,2);
+INSERT INTO EMP VALUES (1005,'ARUN',DATE '1989-08-10','BANGALORE','M',30000,5);
+INSERT INTO EMP VALUES (1006,'SNEHA',DATE '1990-12-05','BANGALORE','F',45000,5);
 
-INSERT INTO PROJECT VALUES
-(10,'ERP',1),
-(20,'BANKING',2),
-(30,'PAYROLL',5);
+INSERT INTO PROJECT VALUES (10,'ERP',1);
+INSERT INTO PROJECT VALUES (20,'BANKING',2);
+INSERT INTO PROJECT VALUES (30,'PAYROLL',5);
 
-INSERT INTO WORKS_ON VALUES
-(1001,10,5),
-(1002,20,6),
-(1003,10,4),
-(1004,20,7),
-(1005,30,5),
-(1006,30,6);
+INSERT INTO WORKS_ON VALUES (1001,10,5);
+INSERT INTO WORKS_ON VALUES (1002,20,6);
+INSERT INTO WORKS_ON VALUES (1003,10,4);
+INSERT INTO WORKS_ON VALUES (1003,20,3);
+INSERT INTO WORKS_ON VALUES (1004,20,7);
+INSERT INTO WORKS_ON VALUES (1005,30,5);
+INSERT INTO WORKS_ON VALUES (1006,30,6);
+
+COMMIT;
 ```
 
 #### Update
@@ -154,7 +196,7 @@ UPDATE EMP SET SALARY = 50000 WHERE ENO = 1001;
 #### Delete
 
 ```sql
-INSERT INTO EMP VALUES (1007,'TEMP','1993-01-01','BANGALORE','M',20000,1);
+INSERT INTO EMP VALUES (1007,'TEMP',DATE '1993-01-01','BANGALORE','M',20000,1);
 DELETE FROM EMP WHERE ENO = 1007;
 ```
 
@@ -167,7 +209,6 @@ COMMIT;
 #### Rollback
 
 ```sql
-START TRANSACTION;
 UPDATE EMP SET SALARY = 60000 WHERE ENO = 1002;
 ROLLBACK;
 ```
@@ -183,7 +224,7 @@ SELECT * FROM WORKS_ON;
 
 #### Memory
 
-COMMIT = save. ROLLBACK = undo.
+COMMIT = save. ROLLBACK = undo. In Oracle, INSERT/UPDATE/DELETE are not saved until COMMIT. CREATE/ALTER/DROP commit automatically.
 
 ### Part A – Program 3
 
@@ -203,13 +244,13 @@ SELECT * FROM WORKS_ON;
 #### Add column
 
 ```sql
-ALTER TABLE EMP ADD EMAIL VARCHAR(50);
+ALTER TABLE EMP ADD (EMAIL VARCHAR2(50));
 ```
 
 #### Modify column
 
 ```sql
-ALTER TABLE EMP MODIFY EMAIL VARCHAR(100);
+ALTER TABLE EMP MODIFY (EMAIL VARCHAR2(100));
 ```
 
 #### Rename column
@@ -221,8 +262,8 @@ ALTER TABLE EMP RENAME COLUMN EMAIL TO EMAIL_ID;
 #### Rename table
 
 ```sql
-RENAME TABLE EMP TO EMPLOYEE;
-RENAME TABLE EMPLOYEE TO EMP;
+ALTER TABLE EMP RENAME TO EMPLOYEE;
+ALTER TABLE EMPLOYEE RENAME TO EMP;
 ```
 
 #### Truncate
@@ -237,17 +278,29 @@ TRUNCATE TABLE TEST;
 DROP TABLE TEST;
 ```
 
-#### Backup – Command Prompt
+#### Backup – one-time setup (run as SYSTEM)
 
-mysqldump -u root -p company_db > company_db_backup.sql
+```sql
+-- Create the folder first (for example C:\backup), then:
+CREATE OR REPLACE DIRECTORY backup_dir AS 'C:\backup';
+GRANT READ, WRITE ON DIRECTORY backup_dir TO company;
+```
+
+#### Backup – Command Prompt (not inside SQL*Plus)
+
+```text
+expdp company/company123@localhost:1521/XEPDB1 schemas=COMPANY directory=BACKUP_DIR dumpfile=company_backup.dmp logfile=company_exp.log
+```
 
 #### Restore – Command Prompt
 
-mysql -u root -p company_db < company_db_backup.sql
+```text
+impdp company/company123@localhost:1521/XEPDB1 schemas=COMPANY directory=BACKUP_DIR dumpfile=company_backup.dmp logfile=company_imp.log table_exists_action=replace
+```
 
 #### Memory
 
-ALTER = change. TRUNCATE = remove all rows. DROP = remove table.
+ALTER = change. TRUNCATE = remove all rows. DROP = remove table. expdp = backup, impdp = restore.
 
 ### Part A – Program 4
 
@@ -283,10 +336,44 @@ SELECT MAX(SALARY) FROM EMP;
 SELECT MIN(SALARY) FROM EMP;
 ```
 
+**Output (sample data):**
+
+```text
+COUNT(*)
+--------
+6       
+
+SUM(SALARY)
+-----------
+260000     
+
+AVG(SALARY)
+-----------
+43333.3    
+
+MAX(SALARY)
+-----------
+55000      
+
+MIN(SALARY)
+-----------
+30000      
+```
+
 #### GROUP BY
 
 ```sql
 SELECT DEPTNO, COUNT(*) FROM EMP GROUP BY DEPTNO;
+```
+
+**Output (sample data):**
+
+```text
+DEPTNO COUNT(*)
+------ --------
+1      2       
+2      2       
+5      2       
 ```
 
 #### GROUP BY + HAVING
@@ -296,6 +383,16 @@ SELECT DEPTNO, COUNT(*)
 FROM EMP
 GROUP BY DEPTNO
 HAVING COUNT(*) >= 2;
+```
+
+**Output (sample data):**
+
+```text
+DEPTNO COUNT(*)
+------ --------
+1      2       
+2      2       
+5      2       
 ```
 
 #### Memory
@@ -331,6 +428,15 @@ JOIN DEPT D ON E.DEPTNO = D.DNO
 WHERE D.DNAME = 'RESEARCH';
 ```
 
+**Output (sample data):**
+
+```text
+ENAME SALARY NEW_SALARY
+----- ------ ----------
+ANIL  45000  49500     
+RAJ   35000  38500     
+```
+
 #### 5(b)
 
 ```sql
@@ -344,9 +450,17 @@ JOIN DEPT D ON E.DEPTNO = D.DNO
 WHERE D.DNAME = 'ACCOUNTS';
 ```
 
+**Output (sample data):**
+
+```text
+TOTAL_SALARY MAX_SALARY MIN_SALARY AVG_SALARY
+------------ ---------- ---------- ----------
+105000       55000      50000      52500     
+```
+
 #### Memory
 
-JOIN connects EMP and DEPT using E.DEPTNO = D.DNO.
+JOIN connects EMP and DEPT using E.DEPTNO = D.DNO. Oracle compares text with case, so write 'RESEARCH' exactly as stored.
 
 ### Part A – Program 6
 
@@ -378,6 +492,15 @@ WHERE EXISTS (
 );
 ```
 
+**Output (sample data):**
+
+```text
+ENAME
+-----
+ARUN 
+SNEHA
+```
+
 #### 6(b)
 
 ```sql
@@ -386,6 +509,16 @@ FROM DEPT D
 JOIN EMP E ON D.DNO = E.DEPTNO
 GROUP BY D.DNO, D.DNAME
 HAVING COUNT(E.ENO) >= 2;
+```
+
+**Output (sample data):**
+
+```text
+DNAME    EMPLOYEE_COUNT
+-------- --------------
+RESEARCH 2             
+ACCOUNTS 2             
+ADMIN    2             
 ```
 
 #### Memory
@@ -420,15 +553,39 @@ JOIN WORKS_ON W ON P.PNO = W.PNUM
 GROUP BY P.PNO, P.PNAME;
 ```
 
+**Output (sample data):**
+
+```text
+PNO PNAME   EMPLOYEE_COUNT
+--- ------- --------------
+10  ERP     2             
+20  BANKING 3             
+30  PAYROLL 2             
+```
+
 #### 7(b)
 
 ```sql
-SELECT ENAME, EBDATE FROM EMP WHERE YEAR(EBDATE) BETWEEN 1990 AND 1999;
+SELECT ENAME, EBDATE
+FROM EMP
+WHERE EXTRACT(YEAR FROM EBDATE) BETWEEN 1990 AND 1999;
+```
+
+**Output (sample data):**
+
+```text
+ENAME  EBDATE    
+------ ----------
+ANIL   1990-01-10
+SINDHU 1991-05-20
+RAJ    1990-11-15
+KAVYA  1992-03-12
+SNEHA  1990-12-05
 ```
 
 #### Memory
 
-YEAR(EBDATE) extracts the year from a date. 1990s = 1990 to 1999.
+Oracle has no YEAR() function. Use EXTRACT(YEAR FROM date). 1990s = 1990 to 1999.
 
 ### Part A – Program 8
 
@@ -461,9 +618,15 @@ AND E.DEPTNO IN (
 GROUP BY D.DNO;
 ```
 
+**Output (sample data):**
+
+```text
+no rows selected
+```
+
 #### Practice note
 
-With the small sample data, this may return no rows because no department has more than 5 employees.
+With the small sample data, this returns no rows because no department has more than 5 employees. Add more employees to a department to see a result.
 
 #### Memory
 
@@ -494,6 +657,14 @@ FROM PROJECT P
 JOIN WORKS_ON W ON P.PNO = W.PNUM
 GROUP BY P.PNO, P.PNAME
 HAVING COUNT(W.ENO) > 2;
+```
+
+**Output (sample data):**
+
+```text
+PNO PNAME   EMPLOYEE_COUNT
+--- ------- --------------
+20  BANKING 3             
 ```
 
 #### Memory
@@ -558,10 +729,11 @@ SELECT * FROM EMP_VIEW;
 INSERT INTO EMP_VIEW VALUES (1010,'MANOJ',45000);
 ```
 
-#### Invalid insert
+#### Invalid insert (gives an error)
 
 ```sql
 INSERT INTO EMP_VIEW VALUES (1011,'RAHUL',60000);
+-- ORA-01402: view WITH CHECK OPTION where-clause violation
 ```
 
 #### Drop
@@ -572,7 +744,7 @@ DROP VIEW EMP_VIEW;
 
 #### Memory
 
-VIEW = virtual table. CHECK OPTION = inserted/updated data must satisfy the view condition.
+VIEW = virtual table. CHECK OPTION = inserted/updated data must satisfy the view condition. CREATE VIEW needs the CREATE VIEW privilege (given in Setup).
 
 ---
 
@@ -582,7 +754,7 @@ VIEW = virtual table. CHECK OPTION = inserted/updated data must satisfy the view
 
 ### Schemas and Keys
 
-Programs 1–5 use library_db and Programs 6–10 use student_db. Both have a table called STUDENT, so they are kept in separate databases. Run Program 1 first, then Program 6, and run the programs in order because Programs 9 and 10 change data.
+Programs 1–5 use the `library` user and Programs 6–10 use the `students` user. Both have a table called STUDENT, so they are kept in separate users. Run Program 1 first, then Program 6, and run the programs in order because Programs 9 and 10 change data.
 
 ```text
 BRANCH (Branchid PK, Branchname, HOD)
@@ -599,53 +771,63 @@ BORROW (USN FK, Bookid FK, Borrowed_Date)  -- PK (USN, Bookid)
 > **Creating Tables (With and Without Constraints), Inserting/Updating/Deleting**  
 > **Records in a Table, Saving (Commit) and Undoing (rollback)**  
 
-#### View databases
+#### View databases (Oracle: database name and users/schemas)
 
 ```sql
-SHOW DATABASES;
+SELECT name FROM v$database;
+SELECT username FROM all_users ORDER BY username;
+SHOW USER;
 ```
 
-#### Create database and tables (with constraints)
+#### Create database (Oracle uses a user/schema)
 
 ```sql
-CREATE DATABASE IF NOT EXISTS library_db;
-USE library_db;
+-- Run as SYSTEM (or any DBA user)
+CREATE USER library IDENTIFIED BY library123;
+GRANT CONNECT, RESOURCE, CREATE VIEW, UNLIMITED TABLESPACE TO library;
 
+-- Switch to the new schema
+CONNECT library/library123
+```
+
+#### Create tables (with constraints)
+
+```sql
 CREATE TABLE BRANCH (
-    Branchid INT PRIMARY KEY,
-    Branchname VARCHAR(30) NOT NULL,
-    HOD VARCHAR(30)
+    Branchid NUMBER(3) PRIMARY KEY,
+    Branchname VARCHAR2(30) NOT NULL,
+    HOD VARCHAR2(30)
 );
 
 CREATE TABLE AUTHOR (
-    Authorid INT PRIMARY KEY,
-    Authorname VARCHAR(40) NOT NULL,
-    Country VARCHAR(30),
-    age INT
+    Authorid NUMBER(4) PRIMARY KEY,
+    Authorname VARCHAR2(40) NOT NULL,
+    Country VARCHAR2(30),
+    age NUMBER(3)
 );
 
 CREATE TABLE STUDENT (
-    USN VARCHAR(12) PRIMARY KEY,
-    Name VARCHAR(40) NOT NULL,
-    Address VARCHAR(100),
-    Branchid INT,
-    sem INT,
+    USN VARCHAR2(12) PRIMARY KEY,
+    Name VARCHAR2(40) NOT NULL,
+    Address VARCHAR2(100),
+    Branchid NUMBER(3),
+    sem NUMBER(2),
     FOREIGN KEY (Branchid) REFERENCES BRANCH(Branchid)
 );
 
 CREATE TABLE BOOK (
-    Bookid INT PRIMARY KEY,
-    Bookname VARCHAR(60) NOT NULL,
-    Authorid INT,
-    Publisher VARCHAR(40),
-    Branchid INT,
+    Bookid NUMBER(4) PRIMARY KEY,
+    Bookname VARCHAR2(60) NOT NULL,
+    Authorid NUMBER(4),
+    Publisher VARCHAR2(40),
+    Branchid NUMBER(3),
     FOREIGN KEY (Authorid) REFERENCES AUTHOR(Authorid),
     FOREIGN KEY (Branchid) REFERENCES BRANCH(Branchid)
 );
 
 CREATE TABLE BORROW (
-    USN VARCHAR(12),
-    Bookid INT,
+    USN VARCHAR2(12),
+    Bookid NUMBER(4),
     Borrowed_Date DATE,
     PRIMARY KEY (USN, Bookid),
     FOREIGN KEY (USN) REFERENCES STUDENT(USN),
@@ -656,57 +838,54 @@ CREATE TABLE BORROW (
 #### View tables
 
 ```sql
-SHOW TABLES;
+SELECT table_name FROM user_tables;
 ```
 
 #### Create table without constraints
 
 ```sql
 CREATE TABLE TEST (
-    ID INT,
-    NAME VARCHAR(30)
+    ID NUMBER,
+    NAME VARCHAR2(30)
 );
 ```
 
 #### Insert records
 
 ```sql
-INSERT INTO BRANCH VALUES
-(1,'MCA','Dr. Rao'),
-(2,'MBA','Dr. Meera'),
-(3,'BCA','Dr. Hegde');
+INSERT INTO BRANCH VALUES (1,'MCA','Dr. Rao');
+INSERT INTO BRANCH VALUES (2,'MBA','Dr. Meera');
+INSERT INTO BRANCH VALUES (3,'BCA','Dr. Hegde');
 
-INSERT INTO AUTHOR VALUES
-(101,'Korth','USA',60),
-(102,'Navathe','USA',58),
-(103,'Elmasri','USA',62),
-(104,'Kanetkar','India',55),
-(105,'Balagurusamy','India',70);
+INSERT INTO AUTHOR VALUES (101,'Korth','USA',60);
+INSERT INTO AUTHOR VALUES (102,'Navathe','USA',58);
+INSERT INTO AUTHOR VALUES (103,'Elmasri','USA',62);
+INSERT INTO AUTHOR VALUES (104,'Kanetkar','India',55);
+INSERT INTO AUTHOR VALUES (105,'Balagurusamy','India',70);
 
-INSERT INTO STUDENT VALUES
-('1SI24MC001','Anil','Bangalore',1,2),
-('1SI24MC002','Sindhu','Mysore',1,2),
-('1SI24MC003','Raj','Bangalore',1,2),
-('1SI24MC004','Kavya','Mysore',1,2),
-('1SI24MC005','Arun','Bangalore',1,1),
-('1SI24MB001','Sneha','Bangalore',2,2);
+INSERT INTO STUDENT VALUES ('1SI24MC001','Anil','Bangalore',1,2);
+INSERT INTO STUDENT VALUES ('1SI24MC002','Sindhu','Mysore',1,2);
+INSERT INTO STUDENT VALUES ('1SI24MC003','Raj','Bangalore',1,2);
+INSERT INTO STUDENT VALUES ('1SI24MC004','Kavya','Mysore',1,2);
+INSERT INTO STUDENT VALUES ('1SI24MC005','Arun','Bangalore',1,1);
+INSERT INTO STUDENT VALUES ('1SI24MB001','Sneha','Bangalore',2,2);
 
-INSERT INTO BOOK VALUES
-(201,'DBMS Concepts',101,'McGraw Hill',1),
-(202,'Fundamentals of DBMS',103,'Pearson',1),
-(203,'Let Us C',104,'BPB',1),
-(204,'Java Programming',105,'McGraw Hill',1),
-(205,'Operating Systems',101,'McGraw Hill',1),
-(206,'Principles of Management',105,'Pearson',2);
+INSERT INTO BOOK VALUES (201,'DBMS Concepts',101,'McGraw Hill',1);
+INSERT INTO BOOK VALUES (202,'Fundamentals of DBMS',103,'Pearson',1);
+INSERT INTO BOOK VALUES (203,'Let Us C',104,'BPB',1);
+INSERT INTO BOOK VALUES (204,'Java Programming',105,'McGraw Hill',1);
+INSERT INTO BOOK VALUES (205,'Operating Systems',101,'McGraw Hill',1);
+INSERT INTO BOOK VALUES (206,'Principles of Management',105,'Pearson',2);
 
-INSERT INTO BORROW VALUES
-('1SI24MC001',201,'2026-08-01'),
-('1SI24MC001',203,'2026-08-05'),
-('1SI24MC001',204,'2026-08-10'),
-('1SI24MC002',201,'2026-08-02'),
-('1SI24MC002',205,'2026-08-12'),
-('1SI24MC003',202,'2026-08-03'),
-('1SI24MC003',203,'2026-08-15');
+INSERT INTO BORROW VALUES ('1SI24MC001',201,DATE '2026-08-01');
+INSERT INTO BORROW VALUES ('1SI24MC001',203,DATE '2026-08-05');
+INSERT INTO BORROW VALUES ('1SI24MC001',204,DATE '2026-08-10');
+INSERT INTO BORROW VALUES ('1SI24MC002',201,DATE '2026-08-02');
+INSERT INTO BORROW VALUES ('1SI24MC002',205,DATE '2026-08-12');
+INSERT INTO BORROW VALUES ('1SI24MC003',202,DATE '2026-08-03');
+INSERT INTO BORROW VALUES ('1SI24MC003',203,DATE '2026-08-15');
+
+COMMIT;
 ```
 
 #### Update
@@ -732,7 +911,6 @@ COMMIT;
 #### Rollback
 
 ```sql
-START TRANSACTION;
 UPDATE STUDENT SET sem = 3 WHERE USN = '1SI24MC001';
 ROLLBACK;
 ```
@@ -749,7 +927,7 @@ SELECT * FROM BORROW;
 
 #### Memory
 
-COMMIT = save. ROLLBACK = undo. Foreign keys: create parent tables first (BRANCH, AUTHOR), then STUDENT, BOOK, BORROW.
+COMMIT = save. ROLLBACK = undo. Create parent tables first (BRANCH, AUTHOR), then STUDENT, BOOK, BORROW. CREATE statements commit automatically.
 
 ### Part B – Program 2
 
@@ -779,14 +957,12 @@ WHERE B.Branchname = 'MCA' AND S.sem = 2;
 **Output (sample data):**
 
 ```text
-+------------+--------+-----------+----------+-----+
-| USN        | Name   | Address   | Branchid | sem |
-+------------+--------+-----------+----------+-----+
-| 1SI24MC001 | Anil   | Bangalore | 1        | 2   |
-| 1SI24MC002 | Sindhu | Mysore    | 1        | 2   |
-| 1SI24MC003 | Raj    | Bangalore | 1        | 2   |
-| 1SI24MC004 | Kavya  | Mysore    | 1        | 2   |
-+------------+--------+-----------+----------+-----+
+USN        NAME   ADDRESS   BRANCHID SEM
+---------- ------ --------- -------- ---
+1SI24MC001 Anil   Bangalore 1        2  
+1SI24MC002 Sindhu Mysore    1        2  
+1SI24MC003 Raj    Bangalore 1        2  
+1SI24MC004 Kavya  Mysore    1        2  
 ```
 
 #### 2(b) Students who have not borrowed any books
@@ -800,13 +976,11 @@ WHERE USN NOT IN (SELECT USN FROM BORROW);
 **Output (sample data):**
 
 ```text
-+------------+-------+-----------+----------+-----+
-| USN        | Name  | Address   | Branchid | sem |
-+------------+-------+-----------+----------+-----+
-| 1SI24MC004 | Kavya | Mysore    | 1        | 2   |
-| 1SI24MC005 | Arun  | Bangalore | 1        | 1   |
-| 1SI24MB001 | Sneha | Bangalore | 2        | 2   |
-+------------+-------+-----------+----------+-----+
+USN        NAME  ADDRESS   BRANCHID SEM
+---------- ----- --------- -------- ---
+1SI24MC004 Kavya Mysore    1        2  
+1SI24MC005 Arun  Bangalore 1        1  
+1SI24MB001 Sneha Bangalore 2        2  
 ```
 
 #### Memory
@@ -844,17 +1018,15 @@ WHERE BR.Branchname = 'MCA' AND S.sem = 2;
 **Output (sample data):**
 
 ```text
-+------------+--------+------------+----------------------+--------------+---------------+
-| USN        | Name   | Branchname | Bookname             | Authorname   | Borrowed_Date |
-+------------+--------+------------+----------------------+--------------+---------------+
-| 1SI24MC001 | Anil   | MCA        | DBMS Concepts        | Korth        | 2026-08-01    |
-| 1SI24MC001 | Anil   | MCA        | Let Us C             | Kanetkar     | 2026-08-05    |
-| 1SI24MC001 | Anil   | MCA        | Java Programming     | Balagurusamy | 2026-08-10    |
-| 1SI24MC002 | Sindhu | MCA        | DBMS Concepts        | Korth        | 2026-08-02    |
-| 1SI24MC002 | Sindhu | MCA        | Operating Systems    | Korth        | 2026-08-12    |
-| 1SI24MC003 | Raj    | MCA        | Fundamentals of DBMS | Elmasri      | 2026-08-03    |
-| 1SI24MC003 | Raj    | MCA        | Let Us C             | Kanetkar     | 2026-08-15    |
-+------------+--------+------------+----------------------+--------------+---------------+
+USN        NAME   BRANCHNAME BOOKNAME             AUTHORNAME   BORROWED_DATE
+---------- ------ ---------- -------------------- ------------ -------------
+1SI24MC001 Anil   MCA        DBMS Concepts        Korth        2026-08-01   
+1SI24MC001 Anil   MCA        Let Us C             Kanetkar     2026-08-05   
+1SI24MC001 Anil   MCA        Java Programming     Balagurusamy 2026-08-10   
+1SI24MC002 Sindhu MCA        DBMS Concepts        Korth        2026-08-02   
+1SI24MC002 Sindhu MCA        Operating Systems    Korth        2026-08-12   
+1SI24MC003 Raj    MCA        Fundamentals of DBMS Elmasri      2026-08-03   
+1SI24MC003 Raj    MCA        Let Us C             Kanetkar     2026-08-15   
 ```
 
 #### 3(b) Number of books written by each author
@@ -869,15 +1041,13 @@ GROUP BY A.Authorid, A.Authorname;
 **Output (sample data):**
 
 ```text
-+----------+--------------+-------------+
-| Authorid | Authorname   | No_of_Books |
-+----------+--------------+-------------+
-| 101      | Korth        | 2           |
-| 102      | Navathe      | 0           |
-| 103      | Elmasri      | 1           |
-| 104      | Kanetkar     | 1           |
-| 105      | Balagurusamy | 2           |
-+----------+--------------+-------------+
+AUTHORID AUTHORNAME   NO_OF_BOOKS
+-------- ------------ -----------
+101      Korth        2          
+102      Navathe      0          
+103      Elmasri      1          
+104      Kanetkar     1          
+105      Balagurusamy 2          
 ```
 
 #### Memory
@@ -915,11 +1085,9 @@ WHERE USN IN (
 **Output (sample data):**
 
 ```text
-+------------+------+-----------+----------+-----+
-| USN        | Name | Address   | Branchid | sem |
-+------------+------+-----------+----------+-----+
-| 1SI24MC001 | Anil | Bangalore | 1        | 2   |
-+------------+------+-----------+----------+-----+
+USN        NAME ADDRESS   BRANCHID SEM
+---------- ---- --------- -------- ---
+1SI24MC001 Anil Bangalore 1        2  
 ```
 
 #### 4(b) Students who borrowed books of more than one author
@@ -939,12 +1107,10 @@ WHERE USN IN (
 **Output (sample data):**
 
 ```text
-+------------+------+-----------+----------+-----+
-| USN        | Name | Address   | Branchid | sem |
-+------------+------+-----------+----------+-----+
-| 1SI24MC001 | Anil | Bangalore | 1        | 2   |
-| 1SI24MC003 | Raj  | Bangalore | 1        | 2   |
-+------------+------+-----------+----------+-----+
+USN        NAME ADDRESS   BRANCHID SEM
+---------- ---- --------- -------- ---
+1SI24MC001 Anil Bangalore 1        2  
+1SI24MC003 Raj  Bangalore 1        2  
 ```
 
 #### Memory
@@ -977,16 +1143,14 @@ ORDER BY Bookname DESC;
 **Output (sample data):**
 
 ```text
-+--------------------------+
-| Bookname                 |
-+--------------------------+
-| Principles of Management |
-| Operating Systems        |
-| Let Us C                 |
-| Java Programming         |
-| Fundamentals of DBMS     |
-| DBMS Concepts            |
-+--------------------------+
+BOOKNAME                
+------------------------
+Principles of Management
+Operating Systems       
+Let Us C                
+Java Programming        
+Fundamentals of DBMS    
+DBMS Concepts           
 ```
 
 #### 5(b) Students whose borrowed books all have the same publisher
@@ -1006,11 +1170,9 @@ WHERE USN IN (
 **Output (sample data):**
 
 ```text
-+------------+--------+---------+----------+-----+
-| USN        | Name   | Address | Branchid | sem |
-+------------+--------+---------+----------+-----+
-| 1SI24MC002 | Sindhu | Mysore  | 1        | 2   |
-+------------+--------+---------+----------+-----+
+USN        NAME   ADDRESS BRANCHID SEM
+---------- ------ ------- -------- ---
+1SI24MC002 Sindhu Mysore  1        2  
 ```
 
 #### Memory
@@ -1025,22 +1187,30 @@ DESC = Z to A. One distinct publisher per student = all books from the same publ
 > **a. Creating Tables (With and Without Constraints), Inserting/Updating/Deleting**  
 > **Records in a Table, Saving (Commit) and Undoing (rollback)**  
 
-#### Create database and table (with constraints)
+#### Create database (Oracle uses a user/schema)
 
 ```sql
-CREATE DATABASE IF NOT EXISTS student_db;
-USE student_db;
+-- Run as SYSTEM (or any DBA user)
+CREATE USER students IDENTIFIED BY students123;
+GRANT CONNECT, RESOURCE, CREATE VIEW, UNLIMITED TABLESPACE TO students;
 
+-- Switch to the new schema
+CONNECT students/students123
+```
+
+#### Create table (with constraints)
+
+```sql
 CREATE TABLE STUDENT (
-    USN INT PRIMARY KEY,
-    name VARCHAR(40) NOT NULL,
+    USN NUMBER(5) PRIMARY KEY,
+    name VARCHAR2(40) NOT NULL,
     date_of_birth DATE,
-    branch VARCHAR(20),
-    mark1 INT CHECK (mark1 BETWEEN 0 AND 100),
-    mark2 INT CHECK (mark2 BETWEEN 0 AND 100),
-    mark3 INT CHECK (mark3 BETWEEN 0 AND 100),
-    total INT DEFAULT 0,
-    GPA DECIMAL(3,2)
+    branch VARCHAR2(20),
+    mark1 NUMBER(3) CHECK (mark1 BETWEEN 0 AND 100),
+    mark2 NUMBER(3) CHECK (mark2 BETWEEN 0 AND 100),
+    mark3 NUMBER(3) CHECK (mark3 BETWEEN 0 AND 100),
+    total NUMBER(4) DEFAULT 0,
+    GPA NUMBER(3,2)
 );
 ```
 
@@ -1048,21 +1218,22 @@ CREATE TABLE STUDENT (
 
 ```sql
 CREATE TABLE TEST2 (
-    ID INT,
-    NAME VARCHAR(30)
+    ID NUMBER,
+    NAME VARCHAR2(30)
 );
 ```
 
 #### Insert records
 
 ```sql
-INSERT INTO STUDENT (USN, name, date_of_birth, branch, mark1, mark2, mark3, GPA) VALUES
-(1001,'ANIL KUMAR','1990-01-10','MCA',85,90,88,8.90),
-(1002,'SINDHU','1991-05-20','MCA',78,82,80,8.00),
-(1003,'RAJ','1990-11-15','MBA',65,70,68,6.80),
-(1004,'KAVYA','1992-03-12','BCA',90,92,95,9.30),
-(1005,'SNEHA','1990-12-05','MBA',72,75,70,7.30),
-(1006,'SAGAR','1991-08-10','MCA',88,85,90,8.80);
+INSERT INTO STUDENT (USN, name, date_of_birth, branch, mark1, mark2, mark3, GPA) VALUES (1001,'ANIL KUMAR',DATE '1990-01-10','MCA',85,90,88,8.90);
+INSERT INTO STUDENT (USN, name, date_of_birth, branch, mark1, mark2, mark3, GPA) VALUES (1002,'SINDHU',DATE '1991-05-20','MCA',78,82,80,8.00);
+INSERT INTO STUDENT (USN, name, date_of_birth, branch, mark1, mark2, mark3, GPA) VALUES (1003,'RAJ',DATE '1990-11-15','MBA',65,70,68,6.80);
+INSERT INTO STUDENT (USN, name, date_of_birth, branch, mark1, mark2, mark3, GPA) VALUES (1004,'KAVYA',DATE '1992-03-12','BCA',90,92,95,9.30);
+INSERT INTO STUDENT (USN, name, date_of_birth, branch, mark1, mark2, mark3, GPA) VALUES (1005,'SNEHA',DATE '1990-12-05','MBA',72,75,70,7.30);
+INSERT INTO STUDENT (USN, name, date_of_birth, branch, mark1, mark2, mark3, GPA) VALUES (1006,'SAGAR',DATE '1991-08-10','MCA',88,85,90,8.80);
+
+COMMIT;
 ```
 
 #### Update
@@ -1076,7 +1247,7 @@ UPDATE STUDENT SET branch = 'MBA' WHERE USN = 1003;
 
 ```sql
 INSERT INTO STUDENT (USN, name, date_of_birth, branch, mark1, mark2, mark3, GPA)
-VALUES (1099,'TEMP','1995-01-01','MCA',50,50,50,5.00);
+VALUES (1099,'TEMP',DATE '1995-01-01','MCA',50,50,50,5.00);
 DELETE FROM STUDENT WHERE USN = 1099;
 ```
 
@@ -1089,7 +1260,6 @@ COMMIT;
 #### Rollback
 
 ```sql
-START TRANSACTION;
 UPDATE STUDENT SET mark1 = 0 WHERE USN = 1002;
 ROLLBACK;
 ```
@@ -1126,16 +1296,14 @@ FROM STUDENT;
 **Output (sample data):**
 
 ```text
-+------+------------+------+
-| USN  | name       | GPA  |
-+------+------------+------+
-| 1001 | ANIL KUMAR | 8.90 |
-| 1002 | SINDHU     | 8.00 |
-| 1003 | RAJ        | 6.80 |
-| 1004 | KAVYA      | 9.30 |
-| 1005 | SNEHA      | 7.30 |
-| 1006 | SAGAR      | 8.80 |
-+------+------------+------+
+USN  NAME       GPA
+---- ---------- ---
+1001 ANIL KUMAR 8.9
+1002 SINDHU     8  
+1003 RAJ        6.8
+1004 KAVYA      9.3
+1005 SNEHA      7.3
+1006 SAGAR      8.8
 ```
 
 #### 7(b) Students born in a particular year (1990)
@@ -1143,24 +1311,22 @@ FROM STUDENT;
 ```sql
 SELECT *
 FROM STUDENT
-WHERE YEAR(date_of_birth) = 1990;
+WHERE EXTRACT(YEAR FROM date_of_birth) = 1990;
 ```
 
 **Output (sample data):**
 
 ```text
-+------+------------+---------------+--------+-------+-------+-------+-------+------+
-| USN  | name       | date_of_birth | branch | mark1 | mark2 | mark3 | total | GPA  |
-+------+------------+---------------+--------+-------+-------+-------+-------+------+
-| 1001 | ANIL KUMAR | 1990-01-10    | MCA    | 85    | 90    | 88    | 0     | 8.90 |
-| 1003 | RAJ        | 1990-11-15    | MBA    | 65    | 70    | 68    | 0     | 6.80 |
-| 1005 | SNEHA      | 1990-12-05    | MBA    | 72    | 75    | 70    | 0     | 7.30 |
-+------+------------+---------------+--------+-------+-------+-------+-------+------+
+USN  NAME       DATE_OF_BIRTH BRANCH MARK1 MARK2 MARK3 TOTAL GPA
+---- ---------- ------------- ------ ----- ----- ----- ----- ---
+1001 ANIL KUMAR 1990-01-10    MCA    85    90    88    0     8.9
+1003 RAJ        1990-11-15    MBA    65    70    68    0     6.8
+1005 SNEHA      1990-12-05    MBA    72    75    70    0     7.3
 ```
 
 #### Memory
 
-YEAR(date) gives only the year part of a date.
+Oracle has no YEAR() function. Use EXTRACT(YEAR FROM date).
 
 ### Part B – Program 8
 
@@ -1184,13 +1350,11 @@ WHERE branch = 'MCA';
 **Output (sample data):**
 
 ```text
-+------+------------+---------------+--------+-------+-------+-------+-------+------+
-| USN  | name       | date_of_birth | branch | mark1 | mark2 | mark3 | total | GPA  |
-+------+------------+---------------+--------+-------+-------+-------+-------+------+
-| 1001 | ANIL KUMAR | 1990-01-10    | MCA    | 85    | 90    | 88    | 0     | 8.90 |
-| 1002 | SINDHU     | 1991-05-20    | MCA    | 78    | 82    | 80    | 0     | 8.00 |
-| 1006 | SAGAR      | 1991-08-10    | MCA    | 88    | 85    | 90    | 0     | 8.80 |
-+------+------------+---------------+--------+-------+-------+-------+-------+------+
+USN  NAME       DATE_OF_BIRTH BRANCH MARK1 MARK2 MARK3 TOTAL GPA
+---- ---------- ------------- ------ ----- ----- ----- ----- ---
+1001 ANIL KUMAR 1990-01-10    MCA    85    90    88    0     8.9
+1002 SINDHU     1991-05-20    MCA    78    82    80    0     8  
+1006 SAGAR      1991-08-10    MCA    88    85    90    0     8.8
 ```
 
 #### 8(b) Maximum GPA branch-wise
@@ -1204,13 +1368,11 @@ GROUP BY branch;
 **Output (sample data):**
 
 ```text
-+--------+---------+
-| branch | Max_GPA |
-+--------+---------+
-| BCA    | 9.30    |
-| MBA    | 7.30    |
-| MCA    | 8.90    |
-+--------+---------+
+BRANCH MAX_GPA
+------ -------
+BCA    9.3    
+MBA    7.3    
+MCA    8.9    
 ```
 
 #### Memory
@@ -1233,27 +1395,26 @@ SELECT * FROM STUDENT;
 ```sql
 SELECT *
 FROM STUDENT
-WHERE name LIKE 'S%';
+WHERE UPPER(name) LIKE 'S%';
 ```
 
 **Output (sample data):**
 
 ```text
-+------+--------+---------------+--------+-------+-------+-------+-------+------+
-| USN  | name   | date_of_birth | branch | mark1 | mark2 | mark3 | total | GPA  |
-+------+--------+---------------+--------+-------+-------+-------+-------+------+
-| 1002 | SINDHU | 1991-05-20    | MCA    | 78    | 82    | 80    | 0     | 8.00 |
-| 1005 | SNEHA  | 1990-12-05    | MBA    | 72    | 75    | 70    | 0     | 7.30 |
-| 1006 | SAGAR  | 1991-08-10    | MCA    | 88    | 85    | 90    | 0     | 8.80 |
-+------+--------+---------------+--------+-------+-------+-------+-------+------+
+USN  NAME   DATE_OF_BIRTH BRANCH MARK1 MARK2 MARK3 TOTAL GPA
+---- ------ ------------- ------ ----- ----- ----- ----- ---
+1002 SINDHU 1991-05-20    MCA    78    82    80    0     8  
+1005 SNEHA  1990-12-05    MBA    72    75    70    0     7.3
+1006 SAGAR  1991-08-10    MCA    88    85    90    0     8.8
 ```
 
 #### 9(b) Update total = mark1 + mark2 + mark3
 
 ```sql
 UPDATE STUDENT
-SET total = mark1 + mark2 + mark3
-WHERE USN > 0;
+SET total = mark1 + mark2 + mark3;
+
+COMMIT;
 
 SELECT USN, name, mark1, mark2, mark3, total
 FROM STUDENT;
@@ -1262,21 +1423,19 @@ FROM STUDENT;
 **Output (sample data):**
 
 ```text
-+------+------------+-------+-------+-------+-------+
-| USN  | name       | mark1 | mark2 | mark3 | total |
-+------+------------+-------+-------+-------+-------+
-| 1001 | ANIL KUMAR | 85    | 90    | 88    | 263   |
-| 1002 | SINDHU     | 78    | 82    | 80    | 240   |
-| 1003 | RAJ        | 65    | 70    | 68    | 203   |
-| 1004 | KAVYA      | 90    | 92    | 95    | 277   |
-| 1005 | SNEHA      | 72    | 75    | 70    | 217   |
-| 1006 | SAGAR      | 88    | 85    | 90    | 263   |
-+------+------------+-------+-------+-------+-------+
+USN  NAME       MARK1 MARK2 MARK3 TOTAL
+---- ---------- ----- ----- ----- -----
+1001 ANIL KUMAR 85    90    88    263  
+1002 SINDHU     78    82    80    240  
+1003 RAJ        65    70    68    203  
+1004 KAVYA      90    92    95    277  
+1005 SNEHA      72    75    70    217  
+1006 SAGAR      88    85    90    263  
 ```
 
 #### Memory
 
-LIKE 'S%' = starts with S. WHERE USN > 0 is only there so MySQL Workbench safe-update mode allows the update (it updates all rows).
+LIKE 'S%' = starts with S. In Oracle LIKE is case-sensitive, so UPPER(name) is used to be safe.
 
 ### Part B – Program 10
 
@@ -1295,18 +1454,16 @@ SELECT * FROM STUDENT;
 ```sql
 SELECT *
 FROM STUDENT
-WHERE name LIKE '%AR';
+WHERE UPPER(name) LIKE '%AR';
 ```
 
 **Output (sample data):**
 
 ```text
-+------+------------+---------------+--------+-------+-------+-------+-------+------+
-| USN  | name       | date_of_birth | branch | mark1 | mark2 | mark3 | total | GPA  |
-+------+------------+---------------+--------+-------+-------+-------+-------+------+
-| 1001 | ANIL KUMAR | 1990-01-10    | MCA    | 85    | 90    | 88    | 263   | 8.90 |
-| 1006 | SAGAR      | 1991-08-10    | MCA    | 88    | 85    | 90    | 263   | 8.80 |
-+------+------------+---------------+--------+-------+-------+-------+-------+------+
+USN  NAME       DATE_OF_BIRTH BRANCH MARK1 MARK2 MARK3 TOTAL GPA
+---- ---------- ------------- ------ ----- ----- ----- ----- ---
+1001 ANIL KUMAR 1990-01-10    MCA    85    90    88    263   8.9
+1006 SAGAR      1991-08-10    MCA    88    85    90    263   8.8
 ```
 
 #### 10(b) Delete student with USN 1001
@@ -1315,21 +1472,21 @@ WHERE name LIKE '%AR';
 DELETE FROM STUDENT
 WHERE USN = 1001;
 
+COMMIT;
+
 SELECT * FROM STUDENT;
 ```
 
 **Output (sample data):**
 
 ```text
-+------+--------+---------------+--------+-------+-------+-------+-------+------+
-| USN  | name   | date_of_birth | branch | mark1 | mark2 | mark3 | total | GPA  |
-+------+--------+---------------+--------+-------+-------+-------+-------+------+
-| 1002 | SINDHU | 1991-05-20    | MCA    | 78    | 82    | 80    | 240   | 8.00 |
-| 1003 | RAJ    | 1990-11-15    | MBA    | 65    | 70    | 68    | 203   | 6.80 |
-| 1004 | KAVYA  | 1992-03-12    | BCA    | 90    | 92    | 95    | 277   | 9.30 |
-| 1005 | SNEHA  | 1990-12-05    | MBA    | 72    | 75    | 70    | 217   | 7.30 |
-| 1006 | SAGAR  | 1991-08-10    | MCA    | 88    | 85    | 90    | 263   | 8.80 |
-+------+--------+---------------+--------+-------+-------+-------+-------+------+
+USN  NAME   DATE_OF_BIRTH BRANCH MARK1 MARK2 MARK3 TOTAL GPA
+---- ------ ------------- ------ ----- ----- ----- ----- ---
+1002 SINDHU 1991-05-20    MCA    78    82    80    240   8  
+1003 RAJ    1990-11-15    MBA    65    70    68    203   6.8
+1004 KAVYA  1992-03-12    BCA    90    92    95    277   9.3
+1005 SNEHA  1990-12-05    MBA    72    75    70    217   7.3
+1006 SAGAR  1991-08-10    MCA    88    85    90    263   8.8
 ```
 
 #### Memory
